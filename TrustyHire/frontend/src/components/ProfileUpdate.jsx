@@ -1,10 +1,38 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useUser, useAuth } from '@clerk/clerk-react';
 import axios from 'axios';
+
+// 1. INSERT THE TOGGLE COMPONENT DEFINITION HERE
+// This component is the visual switch
+const ProfileVisibilityToggle = ({ isPublic, onToggle }) => {
+    return (
+        <div className="flex items-center space-x-2">
+            <span className={`text-sm font-medium ${isPublic ? 'text-gray-400' : 'text-gray-800'}`}>Private</span>
+            
+            <button
+                onClick={onToggle}
+                className={`relative inline-flex items-center h-6 rounded-full w-11 transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500
+                    ${isPublic ? 'bg-indigo-600' : 'bg-gray-300'}`}
+            >
+                <span className="sr-only">Toggle Profile Visibility</span>
+                <span
+                    className={`inline-block w-4 h-4 transform bg-white rounded-full transition-transform ease-in-out duration-200 shadow 
+                        ${isPublic ? 'translate-x-6' : 'translate-x-1'}`}
+                ></span>
+            </button>
+
+            <span className={`text-sm font-medium ${isPublic ? 'text-indigo-600' : 'text-gray-400'}`}>Public</span>
+        </div>
+    );
+};
+// END OF TOGGLE COMPONENT DEFINITION
 
 const ProfileUpdate = () => {
     const { user } = useUser();
     const { getToken } = useAuth();
+    
+    // The state for visibility is already here:
+    const [isProfilePublic, setIsProfilePublic] = useState(true);
 
     const [isEditing, setIsEditing] = useState(false);
     const [status, setStatus] = useState('');
@@ -13,6 +41,7 @@ const ProfileUpdate = () => {
 
     // Initial Form State
     const [formData, setFormData] = useState({
+        // ... (existing formData)
         name: '', gender: '', dob: '', phone: '', address: '',
         desiredJobTitle: '', preferredCategory: '', preferredLocation: '', jobType: 'Full-time', bio: '',
         education: [],
@@ -52,6 +81,7 @@ const ProfileUpdate = () => {
                     headers: { Authorization: `Bearer ${token}` }
                 });
                 setDbUser(data);
+                setIsProfilePublic(data.isPublic !== undefined ? data.isPublic : true);     
                 setFormData({
                     ...data,
                     name: data.name || user?.fullName || '',
@@ -62,15 +92,41 @@ const ProfileUpdate = () => {
             } catch (error) {
                 console.log("New user");
                 if(user) setFormData(prev => ({ ...prev, name: user.fullName }));
+                setIsProfilePublic(true);
             }
         };
         if(user) fetchProfile();
-    }, [user]);
+    }, [user, getToken]);
+
+    // 2. INSERT THE TOGGLE HANDLER HERE
+    const handleToggleVisibility = useCallback(async () => {
+        setStatus('Updating profile visibility...');
+        try {
+            const token = await getToken();
+            
+            // Call the backend endpoint
+            const res = await axios.put('http://localhost:5000/api/users/profile/toggle-visibility', {}, {
+                headers: { Authorization: `Bearer ${token}` },
+            });
+
+            // Update local state and dbUser with the new value from the backend
+            const newState = res.data.isPublic;
+            setIsProfilePublic(newState);
+            setDbUser(prev => ({ ...prev, isPublic: newState }));
+
+            setStatus(`Profile is now ${newState ? 'Public' : 'Private'} ✅`);
+        } catch (error) {
+            console.error("Failed to toggle visibility:", error);
+            setStatus('Error: Failed to update profile visibility ❌');
+        }
+    }, [getToken]); // Dependency on getToken   
+    // END OF TOGGLE HANDLER
 
     const handleSubmit = async (e) => {
         e.preventDefault();
         const submitData = new FormData();
         
+        // ... (existing handleSubmit logic)
         Object.keys(formData).forEach(key => {
             if(key !== 'education' && key !== 'experience' && key !== 'skills') {
                 submitData.append(key, formData[key]);
@@ -106,55 +162,72 @@ const ProfileUpdate = () => {
             {status && <div className="mb-6 p-4 bg-green-100 text-green-700 rounded text-center font-bold">{status}</div>}
 
             {!isEditing ? (
-                /* --- VIEW MODE --- */
-                <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
-                    {/* LEFT COLUMN (3/12) */}
-                    <div className="md:col-span-3 space-y-6">
-                        <div className="bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden flex flex-col">
-                            
-                            <div className="p-6 text-center flex-grow">
-                                <img src={user.imageUrl} className="w-24 h-24 rounded-full mx-auto border-4 border-white shadow mb-4" />
-                                <h2 className="text-xl font-bold text-gray-800">{dbUser?.name}</h2>
-                                <p className="text-gray-500 text-sm">{dbUser?.desiredJobTitle || "No Title Set"}</p>
-                                <div className="mt-4 text-left text-sm space-y-2 border-t pt-4">
-                                    <p><strong>📍 Loc:</strong> {dbUser?.address || "N/A"}</p>
-                                    <p><strong>📞 Phone:</strong> {dbUser?.phone || "N/A"}</p>
-                                    <p><strong>✉️ Email:</strong> {user.primaryEmailAddress.emailAddress}</p>
-                                    
-                                </div>
-                                <div className="mt-4 pt-4 border-t">
-                                    <h4 className="font-bold text-gray-700 text-sm mb-2">Skills</h4>
-                                    <div className="flex flex-wrap gap-2 justify-center">
-                                        {dbUser?.skills?.map((skill, i) => (
-                                            <span key={i} className="bg-gray-100 text-gray-600 text-xs px-2 py-1 rounded">{skill}</span>
-                                        ))}
+                /* --- VIEW MODE (FIXED PLACEMENT) --- */
+                
+                // 🌟 NEW RELATIVE WRAPPER for safe absolute positioning
+                <div className="relative"> 
+                    
+                    {/* 🌟 The absolute positioned toggle button with z-50 for visibility */}
+                    <div className="absolute top-0 right-0 z-50 p-4"> 
+                        <ProfileVisibilityToggle
+                            isPublic={isProfilePublic}
+                            onToggle={handleToggleVisibility}
+                        />
+                    </div>
+                    {/* END OF TOGGLE PLACEMENT */}
+                
+                    {/* The Grid structure for content (NOTE: Added pt-12 to push content down from toggle) */}
+                    <div className="grid grid-cols-1 md:grid-cols-12 gap-6 pt-12"> 
+                    
+                        {/* LEFT COLUMN (3/12) */}
+                        <div className="md:col-span-3 space-y-6">
+                            <div className="bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden flex flex-col">
+                                
+                                <div className="p-6 text-center flex-grow">
+                                    <img src={user.imageUrl} className="w-24 h-24 rounded-full mx-auto border-4 border-white shadow mb-4" />
+                                    <h2 className="text-xl font-bold text-gray-800">{dbUser?.name}</h2>
+                                    <p className="text-gray-500 text-sm">{dbUser?.desiredJobTitle || "No Title Set"}</p>
+                                    <div className="mt-4 text-left text-sm space-y-2 border-t pt-4">
+                                        <p><strong>📍 Loc:</strong> {dbUser?.address || "N/A"}</p>
+                                        <p><strong>📞 Phone:</strong> {dbUser?.phone || "N/A"}</p>
+                                        <p><strong>✉️ Email:</strong> {user.primaryEmailAddress.emailAddress}</p>
+                                        
+                                    </div>
+                                    <div className="mt-4 pt-4 border-t">
+                                        <h4 className="font-bold text-gray-700 text-sm mb-2">Skills</h4>
+                                        <div className="flex flex-wrap gap-2 justify-center">
+                                            {dbUser?.skills?.map((skill, i) => (
+                                                <span key={i} className="bg-gray-100 text-gray-600 text-xs px-2 py-1 rounded">{skill}</span>
+                                            ))}
+                                        </div>
                                     </div>
                                 </div>
+
+                                {/* MOVED: Edit Button to Bottom */}
+                                <div className="bg-gray-50 p-4 border-t text-center mt-auto">
+                                    <button onClick={() => setIsEditing(true)} className="w-full bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition font-bold shadow text-sm">
+                                        ✏️ Edit Profile
+                                    </button>
+                                </div>
                             </div>
 
-                            {/* MOVED: Edit Button to Bottom */}
-                            <div className="bg-gray-50 p-4 border-t text-center mt-auto">
-                                <button onClick={() => setIsEditing(true)} className="w-full bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition font-bold shadow text-sm">
-                                    ✏️ Edit Profile
-                                </button>
+                            <div className="bg-white p-6 rounded-xl shadow border border-gray-100 text-center">
+                                <h3 className="font-bold mb-2">Resume</h3>
+                                {dbUser?.resume?.url ? 
+                                    <a href={dbUser.resume.url} target="_blank" className="text-blue-600 font-bold hover:underline">Download CV</a> 
+                                    : <span className="text-gray-400 text-sm">Not Uploaded</span>}
                             </div>
                         </div>
 
-                         <div className="bg-white p-6 rounded-xl shadow border border-gray-100 text-center">
-                            <h3 className="font-bold mb-2">Resume</h3>
-                            {dbUser?.resume?.url ? 
-                                <a href={dbUser.resume.url} target="_blank" className="text-blue-600 font-bold hover:underline">Download CV</a> 
-                                : <span className="text-gray-400 text-sm">Not Uploaded</span>}
+                        {/* RIGHT SPACE (9/12) - EMPTY FOR ADS */}
+                        <div className="md:col-span-9 bg-gray-50 border-2 border-dashed border-gray-300 rounded-xl flex items-center justify-center text-gray-400 min-h-[600px]">
+                            Job Ads Space
                         </div>
                     </div>
-
-                    {/* RIGHT SPACE (9/12) - EMPTY FOR ADS */}
-                    <div className="md:col-span-9 bg-gray-50 border-2 border-dashed border-gray-300 rounded-xl flex items-center justify-center text-gray-400 min-h-[600px]">
-                        Job Ads Space
-                    </div>
-                </div>
+                </div> /* Close the new relative wrapper */
             ) : (
                 /* --- EDIT MODE (FORM) --- */
+                // ... (rest of the form)
                 <div className="max-w-4xl mx-auto bg-white p-8 rounded-xl shadow-xl border border-gray-200">
                     <h2 className="text-2xl font-bold mb-6 border-b pb-4">Update Job Profile</h2>
                     <form onSubmit={handleSubmit} className="space-y-8">
