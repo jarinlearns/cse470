@@ -1,41 +1,26 @@
-import { SignedIn, SignedOut, SignIn, SignUp, UserButton } from "@clerk/clerk-react";
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import Register from './components/Register';
 import ProfileUpdate from './components/ProfileUpdate';
+import VerifyEmail from './components/VerifyEmail';
+import MyApplications from './components/MyApplications';
 
 function App() {
   return (
     <Router>
-       <div className="min-h-screen bg-gray-100">
-         {/* Navbar */}
-         <div className="p-4 bg-white shadow flex justify-between items-center">
-            <h1 className="text-xl font-bold text-blue-600">TrustyHire</h1>
-            <SignedIn>
-                <UserButton /> 
-            </SignedIn>
-         </div>
-
-        <div className="p-10 flex justify-center">
-          <Routes>
-             {/* Public Routes: Clerk handles these now */}
-             <Route path="/login/*" element={<SignIn routing="path" path="/login" />} />
-             <Route path="/register/*" element={<SignUp routing="path" path="/register" />} />
-             
-             {/* Protected Route */}
-             <Route path="/profile" element={
-                <>
-                  <SignedIn>
-                    <ProfileUpdate />
-                  </SignedIn>
-                  <SignedOut>
-                     <Navigate to="/login" />
-                  </SignedOut>
-                </>
-             } />
-
-             {/* Default Redirect */}
-             <Route path="/" element={<Navigate to="/profile" />} />
-          </Routes>
-        </div>
+       <div className="min-h-screen bg-gray-100 p-10">
+        <Routes>
+           {/* Home shows both Register and Profile for testing */}
+           <Route path="/" element={
+              <div className="grid md:grid-cols-2 gap-10">
+                 <Register />
+                 <ProfileUpdate />
+              </div>
+           } />
+           
+           
+           <Route path="/verify/:token" element={<VerifyEmail />} />
+           <Route path="/my-applications" element={<MyApplications />} />
+        </Routes>
        </div>
     </Router>
   );
