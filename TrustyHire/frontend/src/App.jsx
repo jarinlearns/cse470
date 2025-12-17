@@ -1,6 +1,7 @@
 import { SignedIn, SignedOut, SignIn, SignUp, UserButton } from "@clerk/clerk-react";
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import ProfileUpdate from './components/ProfileUpdate';
+import JobSearch from './components/JobSearch';
 
 function App() {
   return (
@@ -31,6 +32,9 @@ function App() {
                   </SignedOut>
                 </>
              } />
+
+             {/* ✅ NEW ROUTE ADDED HERE */}
+             <Route path="/jobs" element={<JobSearch />} />
 
              {/* Default Redirect */}
              <Route path="/" element={<Navigate to="/profile" />} />
