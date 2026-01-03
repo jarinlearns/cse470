@@ -6,28 +6,53 @@ const upload = multer({ storage });
 const { protect } = require('../middleware/authMiddleware');
 const User = require('../models/User');
 
+// Update User Profile (Handles Recruiter & Job Seeker data + Resume)
 router.put('/profile', protect, upload.single('resume'), async (req, res) => {
     try {
-        const clerkId = req.auth.userId;
+        const clerkId = req.auth.userId; // Securely get ID from Clerk Token
         const body = req.body;
 
         let user = await User.findOne({ clerkId });
+        
+        // If user doesn't exist, create them
         if (!user) {
-            user = new User({ clerkId, email: body.email, name: body.name });
+            user = new User({ 
+                clerkId, 
+                email: body.email, 
+                name: body.name,
+                role: body.role || 'job_seeker' // Default role
+            });
         }
 
-        // Update Simple Fields
-        const fields = ['name', 'gender', 'dob', 'phone', 'address', 'desiredJobTitle', 'preferredCategory', 'preferredLocation', 'expectedSalary', 'jobType', 'bio'];
+        // 1. Update Simple Fields (Added 'role', 'companyName', 'companyWebsite')
+        const fields = [
+            'name', 
+            'role', 
+            'companyName', 
+            'companyWebsite',
+            'gender', 
+            'dob', 
+            'phone', 
+            'address', 
+            'desiredJobTitle', 
+            'preferredCategory', 
+            'preferredLocation', 
+            'expectedSalary', 
+            'jobType', 
+            'bio'
+        ];
+
         fields.forEach(field => {
             if (body[field]) user[field] = body[field];
         });
 
-        // Update Arrays (Parse JSON strings from FormData)
+        // 2. Update Arrays (Parse JSON strings from FormData)
+        // Frontend sends these as strings because of file upload
         if (body.education) user.education = JSON.parse(body.education);
         if (body.experience) user.experience = JSON.parse(body.experience);
         if (body.skills) user.skills = JSON.parse(body.skills);
 
-        // Update File
+        // 3. Update File (Resume)
         if (req.file) {
             user.resume = { url: req.file.path, public_id: req.file.filename };
         }
@@ -41,6 +66,7 @@ router.put('/profile', protect, upload.single('resume'), async (req, res) => {
     }
 });
 
+// Get User Profile
 router.get('/profile', protect, async (req, res) => {
     try {
         const user = await User.findOne({ clerkId: req.auth.userId });

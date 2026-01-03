@@ -5,7 +5,20 @@ const userSchema = mongoose.Schema({
     email: { type: String, required: true },
     name: { type: String },
 
-    // 1. Personal Info
+    // ✅ ADDED: Role to distinguish users
+    role: { 
+        type: String, 
+        enum: ['job_seeker', 'recruiter'], 
+        default: 'job_seeker' 
+    },
+
+    // ✅ ADDED: Recruiter Specific Information
+    companyName: { type: String }, 
+    companyWebsite: { type: String }, // Optional: nice to have for recruiters
+
+    // =================================================
+    // 1. Personal Info (Job Seeker)
+    // =================================================
     gender: { type: String },
     dob: { type: String },
     phone: { type: String },
