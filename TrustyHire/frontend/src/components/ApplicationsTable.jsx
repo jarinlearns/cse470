@@ -1,5 +1,5 @@
 const ApplicationsTable = ({ applications }) => {
-    // 1. Keep the nice status pill colors
+
     const getStatusStyle = (status) => {
         const styles = {
             Pending: 'bg-blue-50 text-blue-600 border border-blue-100',
@@ -33,7 +33,7 @@ const ApplicationsTable = ({ applications }) => {
                 <tbody className="divide-y divide-gray-50">
                     {applications.map((app) => (
                         <tr key={app._id} className="hover:bg-gray-50/50 transition-all group">
-                            {/* --- COMPANY NAME: TEXT ONLY --- */}
+
                             <td className="px-10 py-6">
                                 <span className="font-extrabold text-gray-900 text-lg tracking-tight">
                                     {app.jobId?.companyName || 'N/A'}
