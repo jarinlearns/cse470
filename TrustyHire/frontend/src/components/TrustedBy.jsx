@@ -11,7 +11,6 @@ const companies = [
       </svg>
     )
   },
-
   {
     name: 'Samsung',
     url: 'https://www.samsung.com',
@@ -58,15 +57,14 @@ const companies = [
   }
 ];
 
-const TrustedBy = () => {
+const TrustedBy = () => { 
   return (
     <div className="max-w-7xl mx-auto px-4 mt-10">
-      {/* Container Box matching JOBlent screenshot */}
-      <div className="bg-white border border-gray-100 rounded-xl py-10 px-12 shadow-sm">
+      <div className="bg-gradient-to-r from-ash-500 to-ash-400 border-none rounded-[2.5rem] py-10 px-12 shadow-xl shadow-blue-500/70">
         <div className="flex flex-col md:flex-row items-center justify-between gap-10">
           
           <div className="min-w-fit">
-            <h2 className="text-lg font-bold text-gray-700">
+            <h2 className="text-lg font-black text-gray-800 italic uppercase tracking-tight">
               Trusted by
             </h2>
           </div>
@@ -78,7 +76,7 @@ const TrustedBy = () => {
                 href={company.url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="transition-transform hover:scale-105 inline-block"
+                className="transition-transform hover:scale-105 inline-block opacity-80 hover:opacity-100"
               >
                 {company.svg}
               </a>
@@ -91,4 +89,4 @@ const TrustedBy = () => {
   );
 };
 
-export default TrustedBy;
+export default TrustedBy;  

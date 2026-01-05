@@ -1,7 +1,6 @@
 import React from 'react';
 
 const AppliedJobsTable = () => {
-    // Sample data to match your reference screenshot
     const appliedJobs = [
         { id: 1, company: "Amazon", logo: "https://logo.clearbit.com/amazon.com", title: "Full Stack Developer", location: "Bangalore", date: "Aug 22, 2024", status: "Pending" },
         { id: 2, company: "Meta", logo: "https://logo.clearbit.com/meta.com", title: "Data Scientist", location: "San Francisco", date: "Aug 22, 2024", status: "Rejected" },
