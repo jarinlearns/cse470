@@ -1,6 +1,7 @@
-import React, { useState } from 'react'; 
-import { SignedIn, SignedOut, SignIn, SignUp, UserButton, useUser } from "@clerk/clerk-react";
+import React, { useState, useEffect } from 'react'; 
+import { SignedIn, SignedOut, SignIn, SignUp, UserButton, useUser, useAuth } from "@clerk/clerk-react";
 import { BrowserRouter as Router, Routes, Route, Link, useNavigate } from 'react-router-dom';
+import axios from 'axios'; // 👈 IMPORT AXIOS
 
 // --- EXISTING COMPONENTS ---
 import ProfileUpdate from './components/ProfileUpdate';
@@ -62,10 +63,29 @@ const FilterSidebar = ({ selectedCategories, setSelectedCategories, selectedLoca
 };
 
 function MainContent() {
-  // 👇 FIX IS HERE: Added 'user' to the destructuring
-  const { isSignedIn, user } = useUser(); 
+  const { isSignedIn, user, isLoaded } = useUser();
   const navigate = useNavigate();
   
+  // 👇 NEW STATE TO STORE THE ROLE FROM DB
+  const [userRole, setUserRole] = useState(null);
+
+  // 👇 FETCH ROLE FROM MONGODB WHEN USER LOGS IN
+  useEffect(() => {
+    const fetchUserRole = async () => {
+        if (isSignedIn && user) {
+            try {
+                // Fetch user details using Clerk ID
+                const res = await axios.get(`http://localhost:5000/api/users/${user.id}`);
+                console.log("User Role Fetched:", res.data.role); // Debugging
+                setUserRole(res.data.role);
+            } catch (error) {
+                console.error("Error fetching user role:", error);
+            }
+        }
+    };
+    fetchUserRole();
+  }, [isSignedIn, user]);
+
   const [selectedCategories, setSelectedCategories] = useState([]);
   const [selectedLocations, setSelectedLocations] = useState([]);
   const [searchQuery, setSearchQuery] = useState("");
@@ -74,7 +94,6 @@ function MainContent() {
   const [showNotifications, setShowNotifications] = useState(false);
   const [notifications, setNotifications] = useState([
     { id: 1, message: "New job posted: UI Designer at Amazon", time: "2h ago" },
-    { id: 2, message: "Congratulations! You have been accepted for the Software Tester role.", time: "5h ago" },
   ]);
 
   const addNotification = (message) => {
@@ -128,17 +147,33 @@ function MainContent() {
                         )}
                     </div>
                     
-                    {/* 👇 THIS LOGIC NOW WORKS BECAUSE 'user' IS DEFINED 👇 */}
-                    {user?.publicMetadata?.role === 'recruiter' && (
-                        <Link to="/recruiter" className="text-gray-600 hover:text-blue-600 font-bold text-xs uppercase tracking-widest">Recruiter</Link>
-                    )}
+                    {/* 👇 THIS LOGIC NOW USES DATABASE ROLE 👇 */}
                     
-                    {/* Optional: Show normal Dashboard only if NOT a recruiter, or for Job Seekers */}
-                    {user?.publicMetadata?.role !== 'recruiter' && (
-                        <Link to="/dashboard" className="text-gray-600 hover:text-blue-600 font-bold text-xs uppercase tracking-widest">Dashboard</Link>
+                    {/* 1. Only Recruiters see this */}
+                    {userRole === 'recruiter' && (
+                        <Link to="/recruiter" className="text-gray-600 hover:text-blue-600 font-bold text-xs uppercase tracking-widest">
+                            Recruiter Dashboard
+                        </Link>
                     )}
 
-                    <Link to="/profile" className="text-gray-600 hover:text-blue-600 font-bold text-xs uppercase tracking-widest">Profile</Link>
+                    {/* 2. Only Job Seekers see this */}
+                    {userRole === 'job_seeker' && (
+                        <Link to="/dashboard" className="text-gray-600 hover:text-blue-600 font-bold text-xs uppercase tracking-widest">
+                            My Dashboard
+                        </Link>
+                    )}
+
+                    <Link to="/profile" className="text-gray-600 hover:text-blue-600 font-bold text-xs uppercase tracking-widest">
+                        Profile
+                    </Link>
+
+                    {/* 3. If role is not yet loaded or missing, show Setup */}
+                    {isSignedIn && !userRole && (
+                        <Link to="/onboarding" className="ml-2 text-white bg-blue-600 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-widest hover:bg-blue-700">
+                            Setup Profile
+                        </Link>
+                    )}
+
                     <UserButton /> 
                 </SignedIn>
                 <SignedOut>
@@ -147,7 +182,8 @@ function MainContent() {
             </div>
          </div>
 
-        <div className="max-w-7xl mx-auto px-6">
+         {/* Routes Section */}
+         <div className="max-w-7xl mx-auto px-6">
           <Routes>
              <Route path="/" element={
                 <div className="py-12 space-y-12">
@@ -175,36 +211,17 @@ function MainContent() {
              } />
              
              <Route path="/dashboard" element={<SignedIn><JobSeekerDashboard /></SignedIn>} />
-             
-             <Route 
-                path="/login/*" 
-                element={
-                    <div className="p-10 flex justify-center">
-                        <SignIn routing="path" path="/login" forceRedirectUrl="/onboarding" />
-                    </div>
-                } 
-             />
-             <Route 
-                path="/register/*" 
-                element={
-                    <div className="p-10 flex justify-center">
-                        <SignUp routing="path" path="/register" forceRedirectUrl="/onboarding" />
-                    </div>
-                } 
-             />
-
+             <Route path="/login/*" element={<div className="p-10 flex justify-center"><SignIn routing="path" path="/login" forceRedirectUrl="/onboarding" /></div>} />
+             <Route path="/register/*" element={<div className="p-10 flex justify-center"><SignUp routing="path" path="/register" forceRedirectUrl="/onboarding" /></div>} />
              <Route path="/profile" element={<div className="p-10 flex justify-center"><SignedIn><ProfileUpdate /></SignedIn></div>} />
-
              <Route path="/recruiter" element={<SignedIn><RecruiterDashboard /></SignedIn>} />
              <Route path="/recruiter/job/:jobId" element={<SignedIn><JobApplicants /></SignedIn>} />
              <Route path="/recruiter/create" element={<SignedIn><PostJob /></SignedIn>} />
              <Route path="/select-role" element={<SignedIn><RoleSelection /></SignedIn>} />
              <Route path="/post-job" element={<PostJob />} />
              <Route path="/onboarding" element={<Onboarding />} />
-
           </Routes>
         </div>
-
         <ApplicationModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} jobTitle={selectedJob?.title} onSuccess={addNotification} />
     </div>
   );

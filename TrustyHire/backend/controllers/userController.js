@@ -1,11 +1,8 @@
-const User = require('../models/User');
+// 👇 THIS WAS MISSING
+const User = require('../models/User'); 
 
-// @desc    Create or Update User Profile (Sync with Clerk)
-// @route   POST /api/users/sync
-// @access  Public (Called by Frontend after Login)
 exports.syncUser = async (req, res) => {
   try {
-    // 1. Log what the frontend is sending (Check your terminal for this!)
     console.log("📥 Sync User Body:", req.body);
 
     const { 
@@ -13,10 +10,8 @@ exports.syncUser = async (req, res) => {
       email, 
       name, 
       role, 
-      // Recruiter specific
       companyName,
       companyWebsite,
-      // Job Seeker specific
       bio, 
       skills, 
       gender, 
@@ -32,23 +27,25 @@ exports.syncUser = async (req, res) => {
       experience
     } = req.body;
 
-    // 2. CRITICAL SAFETY CHECK: Cannot save without Clerk ID or Email
     if (!clerkId || !email) {
-      console.error("❌ Error: Missing Clerk ID or Email in request.");
       return res.status(400).json({ message: "Clerk ID and Email are required" });
     }
 
-    let user = await User.findOne({ clerkId });
+    // Check if user exists by Clerk ID OR by Email
+    let user = await User.findOne({ 
+        $or: [{ clerkId: clerkId }, { email: email }] 
+    });
 
     if (user) {
       // --- UPDATE EXISTING USER ---
-      console.log(`🔄 Updating existing user: ${email}`);
+      console.log(`🔄 Found existing user (ID: ${user._id}). Updating...`);
       
+      user.clerkId = clerkId; // Ensure Clerk ID is linked
       user.name = name || user.name;
       user.email = email || user.email;
       user.role = role || user.role;
       
-      // Update Recruiter Fields (only if provided)
+      // Update Recruiter Fields
       if (companyName) user.companyName = companyName;
       if (companyWebsite) user.companyWebsite = companyWebsite;
 
@@ -65,24 +62,23 @@ exports.syncUser = async (req, res) => {
       if (expectedSalary) user.expectedSalary = expectedSalary;
       if (jobType) user.jobType = jobType;
       
-      // For arrays, we overwrite if new data is sent
       if (education) user.education = education;
       if (experience) user.experience = experience;
 
       await user.save();
-      console.log("✅ User Updated!");
+      console.log("✅ User Updated Successfully!");
       return res.json(user);
 
     } else {
       // --- CREATE NEW USER ---
-      console.log(`🆕 Creating new user: ${email}`);
+      console.log(`🆕 Creating brand new user: ${email}`);
 
       user = new User({
         clerkId,
         email,
         name,
-        role: role || 'job_seeker', // Default role
-        companyName: companyName || "", // Prevent undefined
+        role: role || 'job_seeker',
+        companyName: companyName || "",
         companyWebsite: companyWebsite || "",
         bio: bio || "",
         skills: skills || [],
@@ -105,13 +101,11 @@ exports.syncUser = async (req, res) => {
     }
   } catch (error) {
     console.error('❌ Error syncing user:', error);
-    // Return the actual error message so you can see it in the frontend console
     res.status(500).json({ message: 'Server Error', error: error.message });
   }
 };
 
-// @desc    Get Current User Profile
-// @route   GET /api/users/:clerkId
+// Get Current User Profile
 exports.getUserProfile = async (req, res) => {
     try {
         const user = await User.findOne({ clerkId: req.params.clerkId });
