@@ -6,6 +6,13 @@ const upload = multer({ storage });
 const { protect } = require('../middleware/authMiddleware');
 const User = require('../models/User');
 
+// 👇 1. THIS WAS MISSING: Import the syncUser controller
+const { syncUser } = require('../controllers/userController'); 
+
+// 👇 2. THIS WAS MISSING: The Route Definition
+router.post('/sync', protect, syncUser);
+
+
 // Update User Profile (Handles Recruiter & Job Seeker data + Resume)
 router.put('/profile', protect, upload.single('resume'), async (req, res) => {
     try {
@@ -47,7 +54,6 @@ router.put('/profile', protect, upload.single('resume'), async (req, res) => {
         });
 
         // 2. Update Arrays (Parse JSON strings from FormData)
-        // Frontend sends these as strings because of file upload
         if (body.education) user.education = JSON.parse(body.education);
         if (body.experience) user.experience = JSON.parse(body.experience);
         if (body.skills) user.skills = JSON.parse(body.skills);

@@ -1,6 +1,8 @@
 import React, { useState } from 'react'; 
 import { SignedIn, SignedOut, SignIn, SignUp, UserButton, useUser } from "@clerk/clerk-react";
 import { BrowserRouter as Router, Routes, Route, Link, useNavigate } from 'react-router-dom';
+
+// --- EXISTING COMPONENTS ---
 import ProfileUpdate from './components/ProfileUpdate';
 import TrustedBy from './components/TrustedBy';
 import JobSeekerDashboard from './components/JobSeekerDashboard'; 
@@ -8,6 +10,13 @@ import JobCard from './components/JobCard';
 import ApplicationModal from './components/ApplicationModal';
 import { jobs } from './data/jobs'; 
 import { Search, MapPin, Briefcase, Bell } from 'lucide-react';
+import PostJob from './components/PostJob';
+import Onboarding from "./pages/Onboarding";
+import RoleSelection from './components/RoleSelection';
+
+// --- NEW RECRUITER COMPONENTS ---
+import RecruiterDashboard from './components/RecruiterDashboard';
+import JobApplicants from './components/JobApplicants';
 
 const FilterSidebar = ({ selectedCategories, setSelectedCategories, selectedLocations, setSelectedLocations }) => {
     const categories = ["Programming", "Data Science", "Designing", "Networking", "Management", "Marketing", "Cybersecurity"];
@@ -53,8 +62,8 @@ const FilterSidebar = ({ selectedCategories, setSelectedCategories, selectedLoca
 };
 
 function MainContent() {
-  const { isSignedIn } = useUser(); // Checks if logged in
-  const navigate = useNavigate();   // Moves user to Login page
+  const { isSignedIn } = useUser();
+  const navigate = useNavigate();
   
   const [selectedCategories, setSelectedCategories] = useState([]);
   const [selectedLocations, setSelectedLocations] = useState([]);
@@ -72,13 +81,10 @@ function MainContent() {
     setNotifications([newNotif, ...notifications]);
   };
 
-
   const handleApply = (job) => {
     if (!isSignedIn) {
- 
       navigate('/login');
     } else {
-  
       setSelectedJob(job);
       setIsModalOpen(true);
     }
@@ -120,6 +126,10 @@ function MainContent() {
                             </div>
                         )}
                     </div>
+                    
+                    {/* --- Temporary Link: You can remove this after Onboarding works --- */}
+                    <Link to="/recruiter" className="text-gray-600 hover:text-blue-600 font-bold text-xs uppercase tracking-widest">Recruiter</Link>
+                    
                     <Link to="/dashboard" className="text-gray-600 hover:text-blue-600 font-bold text-xs uppercase tracking-widest">Dashboard</Link>
                     <Link to="/profile" className="text-gray-600 hover:text-blue-600 font-bold text-xs uppercase tracking-widest">Profile</Link>
                     <UserButton /> 
@@ -156,10 +166,39 @@ function MainContent() {
                     </div>
                 </div>
              } />
+             
+             {/* --- DASHBOARD ROUTES --- */}
              <Route path="/dashboard" element={<SignedIn><JobSeekerDashboard /></SignedIn>} />
-             <Route path="/login/*" element={<div className="p-10 flex justify-center"><SignIn routing="path" path="/login" /></div>} />
-             <Route path="/register/*" element={<div className="p-10 flex justify-center"><SignUp routing="path" path="/register" /></div>} />
+             
+             {/* 👇👇👇 UPDATED LOGIN & REGISTER ROUTES BELOW 👇👇👇 */}
+             <Route 
+                path="/login/*" 
+                element={
+                    <div className="p-10 flex justify-center">
+                        <SignIn routing="path" path="/login" forceRedirectUrl="/onboarding" />
+                    </div>
+                } 
+             />
+             <Route 
+                path="/register/*" 
+                element={
+                    <div className="p-10 flex justify-center">
+                        <SignUp routing="path" path="/register" forceRedirectUrl="/onboarding" />
+                    </div>
+                } 
+             />
+             {/* 👆👆👆 UPDATED ABOVE 👆👆👆 */}
+
              <Route path="/profile" element={<div className="p-10 flex justify-center"><SignedIn><ProfileUpdate /></SignedIn></div>} />
+
+             {/* --- RECRUITER ROUTES --- */}
+             <Route path="/recruiter" element={<SignedIn><RecruiterDashboard /></SignedIn>} />
+             <Route path="/recruiter/job/:jobId" element={<SignedIn><JobApplicants /></SignedIn>} />
+             <Route path="/recruiter/create" element={<SignedIn><PostJob /></SignedIn>} />
+             <Route path="/select-role" element={<SignedIn><RoleSelection /></SignedIn>} />
+             <Route path="/post-job" element={<PostJob />} />
+             <Route path="/onboarding" element={<Onboarding />} />
+
           </Routes>
         </div>
 
@@ -177,6 +216,3 @@ function App() {
 }
 
 export default App;
-
-
-

@@ -4,93 +4,109 @@ const User = require('../models/User');
 // @route   POST /api/users/sync
 // @access  Public (Called by Frontend after Login)
 exports.syncUser = async (req, res) => {
-  const { 
-    clerkId, 
-    email, 
-    name, 
-    role, 
-    // Recruiter specific
-    companyName,
-    companyWebsite,
-    // Job Seeker specific
-    bio, 
-    skills, 
-    gender, 
-    dob, 
-    phone, 
-    address,
-    desiredJobTitle,
-    preferredCategory,
-    preferredLocation,
-    expectedSalary,
-    jobType,
-    education,
-    experience
-  } = req.body;
-
   try {
+    // 1. Log what the frontend is sending (Check your terminal for this!)
+    console.log("📥 Sync User Body:", req.body);
+
+    const { 
+      clerkId, 
+      email, 
+      name, 
+      role, 
+      // Recruiter specific
+      companyName,
+      companyWebsite,
+      // Job Seeker specific
+      bio, 
+      skills, 
+      gender, 
+      dob, 
+      phone, 
+      address,
+      desiredJobTitle,
+      preferredCategory,
+      preferredLocation,
+      expectedSalary,
+      jobType,
+      education,
+      experience
+    } = req.body;
+
+    // 2. CRITICAL SAFETY CHECK: Cannot save without Clerk ID or Email
+    if (!clerkId || !email) {
+      console.error("❌ Error: Missing Clerk ID or Email in request.");
+      return res.status(400).json({ message: "Clerk ID and Email are required" });
+    }
+
     let user = await User.findOne({ clerkId });
 
     if (user) {
       // --- UPDATE EXISTING USER ---
+      console.log(`🔄 Updating existing user: ${email}`);
+      
       user.name = name || user.name;
       user.email = email || user.email;
       user.role = role || user.role;
       
-      // Update Recruiter Fields
-      user.companyName = companyName || user.companyName;
-      user.companyWebsite = companyWebsite || user.companyWebsite;
+      // Update Recruiter Fields (only if provided)
+      if (companyName) user.companyName = companyName;
+      if (companyWebsite) user.companyWebsite = companyWebsite;
 
       // Update Job Seeker Fields
-      user.bio = bio || user.bio;
-      user.skills = skills || user.skills;
-      user.gender = gender || user.gender;
-      user.dob = dob || user.dob;
-      user.phone = phone || user.phone;
-      user.address = address || user.address;
-      user.desiredJobTitle = desiredJobTitle || user.desiredJobTitle;
-      user.preferredCategory = preferredCategory || user.preferredCategory;
-      user.preferredLocation = preferredLocation || user.preferredLocation;
-      user.expectedSalary = expectedSalary || user.expectedSalary;
-      user.jobType = jobType || user.jobType;
+      if (bio) user.bio = bio;
+      if (skills) user.skills = skills;
+      if (gender) user.gender = gender;
+      if (dob) user.dob = dob;
+      if (phone) user.phone = phone;
+      if (address) user.address = address;
+      if (desiredJobTitle) user.desiredJobTitle = desiredJobTitle;
+      if (preferredCategory) user.preferredCategory = preferredCategory;
+      if (preferredLocation) user.preferredLocation = preferredLocation;
+      if (expectedSalary) user.expectedSalary = expectedSalary;
+      if (jobType) user.jobType = jobType;
       
-      // For arrays (Education/Experience), we usually overwrite the whole list
+      // For arrays, we overwrite if new data is sent
       if (education) user.education = education;
       if (experience) user.experience = experience;
 
       await user.save();
+      console.log("✅ User Updated!");
       return res.json(user);
 
     } else {
       // --- CREATE NEW USER ---
+      console.log(`🆕 Creating new user: ${email}`);
+
       user = new User({
         clerkId,
         email,
         name,
-        role: role || 'job_seeker', // Default to job_seeker if missing
-        companyName,
-        companyWebsite,
-        bio,
-        skills,
-        gender,
-        dob,
-        phone,
-        address,
-        desiredJobTitle,
-        preferredCategory,
-        preferredLocation,
-        expectedSalary,
-        jobType,
-        education,
-        experience
+        role: role || 'job_seeker', // Default role
+        companyName: companyName || "", // Prevent undefined
+        companyWebsite: companyWebsite || "",
+        bio: bio || "",
+        skills: skills || [],
+        gender: gender || "",
+        dob: dob,
+        phone: phone || "",
+        address: address || "",
+        desiredJobTitle: desiredJobTitle || "",
+        preferredCategory: preferredCategory || "",
+        preferredLocation: preferredLocation || "",
+        expectedSalary: expectedSalary || "",
+        jobType: jobType || "",
+        education: education || [],
+        experience: experience || []
       });
       
       await user.save();
+      console.log("✅ New User Created!");
       return res.status(201).json(user);
     }
   } catch (error) {
-    console.error('Error syncing user:', error);
-    res.status(500).json({ message: 'Server Error' });
+    console.error('❌ Error syncing user:', error);
+    // Return the actual error message so you can see it in the frontend console
+    res.status(500).json({ message: 'Server Error', error: error.message });
   }
 };
 
