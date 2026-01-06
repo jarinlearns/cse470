@@ -85,3 +85,53 @@ exports.getJobById = async (req, res) => {
         res.status(500).json({ message: "Server Error", error: error.message });
     }
 };
+// ... existing code ...
+
+// --- 5. GET: Get Single Job with Applicants (For Recruiter) ---
+exports.getJobForRecruiter = async (req, res) => {
+    try {
+        // We populate the 'applicants.userId' field to get the user's Name, Email, and Resume
+        const job = await Job.findById(req.params.jobId).populate({
+            path: 'applicants.userId',
+            select: 'name email resume' // Only get these fields for privacy
+        });
+
+        if (!job) {
+            return res.status(404).json({ message: "Job not found" });
+        }
+
+        res.status(200).json(job);
+    } catch (error) {
+        console.error("Error fetching job details:", error);
+        res.status(500).json({ message: "Server Error", error: error.message });
+    }
+};
+
+// --- 6. PATCH: Update Applicant Status (Accept/Reject) ---
+exports.updateApplicantStatus = async (req, res) => {
+    try {
+        const { jobId, applicantId } = req.params;
+        const { status } = req.body; // Expecting "Accepted" or "Rejected"
+
+        const job = await Job.findById(jobId);
+        if (!job) return res.status(404).json({ message: "Job not found" });
+
+        // Find the specific applicant in the array
+        const applicant = job.applicants.find(
+            (app) => app.userId.toString() === applicantId
+        );
+
+        if (!applicant) {
+            return res.status(404).json({ message: "Applicant not found in this job" });
+        }
+
+        // Update status
+        applicant.status = status;
+        await job.save();
+
+        res.status(200).json({ message: "Status updated", job });
+    } catch (error) {
+        console.error("Error updating status:", error);
+        res.status(500).json({ message: "Server Error", error: error.message });
+    }
+};

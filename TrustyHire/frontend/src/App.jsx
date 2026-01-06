@@ -62,7 +62,8 @@ const FilterSidebar = ({ selectedCategories, setSelectedCategories, selectedLoca
 };
 
 function MainContent() {
-  const { isSignedIn } = useUser();
+  // 👇 FIX IS HERE: Added 'user' to the destructuring
+  const { isSignedIn, user } = useUser(); 
   const navigate = useNavigate();
   
   const [selectedCategories, setSelectedCategories] = useState([]);
@@ -127,10 +128,16 @@ function MainContent() {
                         )}
                     </div>
                     
-                    {/* --- Temporary Link: You can remove this after Onboarding works --- */}
-                    <Link to="/recruiter" className="text-gray-600 hover:text-blue-600 font-bold text-xs uppercase tracking-widest">Recruiter</Link>
+                    {/* 👇 THIS LOGIC NOW WORKS BECAUSE 'user' IS DEFINED 👇 */}
+                    {user?.publicMetadata?.role === 'recruiter' && (
+                        <Link to="/recruiter" className="text-gray-600 hover:text-blue-600 font-bold text-xs uppercase tracking-widest">Recruiter</Link>
+                    )}
                     
-                    <Link to="/dashboard" className="text-gray-600 hover:text-blue-600 font-bold text-xs uppercase tracking-widest">Dashboard</Link>
+                    {/* Optional: Show normal Dashboard only if NOT a recruiter, or for Job Seekers */}
+                    {user?.publicMetadata?.role !== 'recruiter' && (
+                        <Link to="/dashboard" className="text-gray-600 hover:text-blue-600 font-bold text-xs uppercase tracking-widest">Dashboard</Link>
+                    )}
+
                     <Link to="/profile" className="text-gray-600 hover:text-blue-600 font-bold text-xs uppercase tracking-widest">Profile</Link>
                     <UserButton /> 
                 </SignedIn>
@@ -167,10 +174,8 @@ function MainContent() {
                 </div>
              } />
              
-             {/* --- DASHBOARD ROUTES --- */}
              <Route path="/dashboard" element={<SignedIn><JobSeekerDashboard /></SignedIn>} />
              
-             {/* 👇👇👇 UPDATED LOGIN & REGISTER ROUTES BELOW 👇👇👇 */}
              <Route 
                 path="/login/*" 
                 element={
@@ -187,11 +192,9 @@ function MainContent() {
                     </div>
                 } 
              />
-             {/* 👆👆👆 UPDATED ABOVE 👆👆👆 */}
 
              <Route path="/profile" element={<div className="p-10 flex justify-center"><SignedIn><ProfileUpdate /></SignedIn></div>} />
 
-             {/* --- RECRUITER ROUTES --- */}
              <Route path="/recruiter" element={<SignedIn><RecruiterDashboard /></SignedIn>} />
              <Route path="/recruiter/job/:jobId" element={<SignedIn><JobApplicants /></SignedIn>} />
              <Route path="/recruiter/create" element={<SignedIn><PostJob /></SignedIn>} />

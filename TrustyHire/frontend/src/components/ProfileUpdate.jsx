@@ -1,290 +1,89 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { useUser, useAuth } from '@clerk/clerk-react';
 import axios from 'axios';
-import { Briefcase, MapPin, Building2, Upload, Plus, Trash2 } from 'lucide-react';
 
-// --- 1. CLEAN TEXT-ONLY APPLICATIONS TABLE (UNCHANGED) ---
-const ApplicationsTable = ({ applications }) => {
-    const getStatusStyle = (status) => {
-        const styles = {
-            Pending: 'bg-blue-100/60 text-blue-600',
-            Accepted: 'bg-green-100/60 text-green-600',
-            Rejected: 'bg-red-100/60 text-red-600'
-        };
-        return styles[status] || styles.Pending;
-    };
-
-    if (applications.length === 0) {
-        return (
-            <div className="flex flex-col items-center justify-center py-20 border-2 border-dashed border-gray-100 rounded-3xl bg-white/50">
-                <Briefcase className="text-gray-300 mb-4" size={32} />
-                <p className="text-gray-400 font-semibold text-lg">No applications found</p>
-            </div>
-        );
-    }
-
-    return (
-        <div className="w-full bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden">
-            <table className="w-full text-left">
-                <thead>
-                    <tr className="border-b border-gray-50">
-                        <th className="px-8 py-6 text-sm font-bold text-gray-900 uppercase tracking-wider">Company</th>
-                        <th className="px-8 py-6 text-sm font-bold text-gray-900 uppercase tracking-wider">Job Title</th>
-                        <th className="px-8 py-6 text-sm font-bold text-gray-900 uppercase tracking-wider">Location</th>
-                        <th className="px-8 py-6 text-sm font-bold text-gray-900 uppercase tracking-wider">Date</th>
-                        <th className="px-8 py-6 text-sm font-bold text-gray-900 uppercase tracking-wider">Status</th>
-                    </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-50">
-                    {applications.map((app) => (
-                        <tr key={app._id} className="hover:bg-gray-50/80 transition-all group">
-                            <td className="px-8 py-6">
-                                <span className="font-extrabold text-gray-900 text-lg tracking-tight">
-                                    {app.jobId?.companyName || 'N/A'}
-                                </span>
-                            </td>
-                            <td className="px-8 py-6">
-                                <p className="text-gray-700 font-bold">{app.jobId?.title || 'N/A'}</p>
-                            </td>
-                            <td className="px-8 py-6">
-                                <div className="flex items-center text-gray-500 font-semibold text-sm">
-                                    <MapPin size={16} className="mr-1.5 text-gray-400" />
-                                    {app.jobId?.location || 'Remote'}
-                                </div>
-                            </td>
-                            <td className="px-8 py-6 text-gray-500 font-medium text-sm">
-                                {new Date(app.appliedAt).toLocaleDateString('en-US', {
-                                    month: 'short', day: 'numeric', year: 'numeric'
-                                })}
-                            </td>
-                            <td className="px-8 py-6">
-                                <span className={`px-5 py-2 rounded-xl text-xs font-black uppercase tracking-wider ${getStatusStyle(app.status)}`}>
-                                    {app.status}
-                                </span>
-                            </td>
-                        </tr>
-                    ))}
-                </tbody>
-            </table>
-        </div>
-    );
-};
-
-// --- 2. PROFILE TOGGLE (UNCHANGED) ---
-const ProfileVisibilityToggle = ({ isPublic, onToggle }) => {
-    return (
-        <div className="flex items-center space-x-2">
-            <span className={`text-sm font-medium ${isPublic ? 'text-gray-400' : 'text-gray-800'}`}>Private</span>
-            <button
-                onClick={onToggle}
-                className={`relative inline-flex items-center h-6 rounded-full w-11 transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 ${isPublic ? 'bg-indigo-600' : 'bg-gray-300'}`}
-            >
-                <span className={`inline-block w-4 h-4 transform bg-white rounded-full transition-transform ease-in-out duration-200 shadow ${isPublic ? 'translate-x-6' : 'translate-x-1'}`}></span>
-            </button>
-            <span className={`text-sm font-medium ${isPublic ? 'text-indigo-600' : 'text-gray-400'}`}>Public</span>
-        </div>
-    );
-};
-
-// --- 3. MAIN COMPONENT ---
 const ProfileUpdate = () => {
     const { user } = useUser();
     const { getToken } = useAuth();
 
-    const [isProfilePublic, setIsProfilePublic] = useState(true);
     const [isEditing, setIsEditing] = useState(false);
     const [status, setStatus] = useState('');
     const [dbUser, setDbUser] = useState(null);
     const [resume, setResume] = useState(null);
-    const [photo, setPhoto] = useState(null); // New state for photo upload
 
-    // MOCK DATA (UNCHANGED)
-    const [appliedJobs, setAppliedJobs] = useState([
-        {
-            _id: '1',
-            appliedAt: new Date(),
-            status: 'Accepted',
-            jobId: { companyName: 'Amazon', title: 'Senior Developer', location: 'Seattle, WA' }
-        },
-        {
-            _id: '2',
-            appliedAt: new Date(),
-            status: 'Pending',
-            jobId: { companyName: 'Meta', title: 'Product Designer', location: 'Remote' }
-        },
-        {
-            _id: '3',
-            appliedAt: new Date(),
-            status: 'Rejected',
-            jobId: { companyName: 'Google', title: 'Data Scientist', location: 'Mountain View' }
-        }
-    ]);
-
-    // --- UPDATED STATE STRUCTURE ---
+    // Initial Form State
     const [formData, setFormData] = useState({
-        // 1. Essentials
-        fullName: '',
-        email: '',
-        phone: '',
-        location: '', // City, State
-        
-        // 2. Work & Education (Arrays)
-        workExperience: [{ title: "", company: "", startDate: "", endDate: "", achievements: "" }],
-        education: [{ degree: "", institution: "", gradYear: "" }],
-
-        // 3. Visibility Boosters
-        headline: '', // Professional Headline
-        skills: '',   // Comma separated
-        aboutMe: '',  // Summary
-
-        // 4. Value Add
-        links: { linkedin: '', github: '', portfolio: '' }, // Nested object for links
-        certifications: '', // Comma separated or text
-        languages: '',      // e.g. "English (Native)"
-
-        // 5. Critical Settings
-        jobTitlesTarget: '',
-        workType: 'On-site',
-        salaryExpectation: '',
-        visibilityStatus: 'Actively Looking'
+        name: '', gender: '', dob: '', phone: '', address: '',
+        desiredJobTitle: '', preferredCategory: '', preferredLocation: '', jobType: 'Full-time', bio: '',
+        education: [],
+        experience: [],
+        skills: '' 
     });
 
-    const fetchProfileData = useCallback(async () => {
-        try {
-            const token = await getToken();
-            const config = { headers: { Authorization: `Bearer ${token}` } };
+    // Helper: Add Empty Education
+    const addEducation = () => {
+        setFormData({...formData, education: [...formData.education, { degree: '', institution: '', subject: '', result: '', startDate: '', endDate: '' }] });
+    };
 
-            const [profileRes, applicationsRes] = await Promise.all([
-                axios.get('http://localhost:5000/api/users/profile', config),
-                axios.get('http://localhost:5000/api/applications/my-applications', config)
-            ]);
+    // Helper: Remove Education
+    const removeEducation = (index) => {
+        const newEdu = [...formData.education];
+        newEdu.splice(index, 1);
+        setFormData({ ...formData, education: newEdu });
+    };
 
-            const data = profileRes.data;
-            setDbUser(data);
-            setIsProfilePublic(data.isPublic !== undefined ? data.isPublic : true);
-            
-            // Map backend data to new form structure
-            setFormData({
-                fullName: data.name || user?.fullName || '',
-                email: data.email || user?.primaryEmailAddress?.emailAddress || '',
-                phone: data.phone || '',
-                location: data.address || '', 
-                
-                workExperience: data.experience && data.experience.length > 0 ? data.experience : [{ title: "", company: "", startDate: "", endDate: "", achievements: "" }],
-                education: data.education && data.education.length > 0 ? data.education : [{ degree: "", institution: "", gradYear: "" }],
-                
-                headline: data.headline || data.desiredJobTitle || '', 
-                skills: data.skills ? data.skills.join(', ') : '',
-                aboutMe: data.bio || '',
-                
-                links: data.links || { linkedin: '', github: '', portfolio: '' },
-                certifications: data.certifications ? data.certifications.join(', ') : '',
-                languages: data.languages ? data.languages.join(', ') : '',
+    // Helper: Add Empty Experience
+    const addExperience = () => {
+        setFormData({...formData, experience: [...formData.experience, { company: '', position: '', type: 'Full-time', responsibilities: '', startDate: '', endDate: '', isCurrent: false }] });
+    };
 
-                jobTitlesTarget: data.desiredJobTitle || '',
-                workType: data.jobType || 'On-site',
-                salaryExpectation: data.expectedSalary || '',
-                visibilityStatus: data.visibilityStatus || 'Actively Looking'
-            });
-
-            if (applicationsRes.data.success && applicationsRes.data.applications.length > 0) {
-                setAppliedJobs(applicationsRes.data.applications);
-            }
-        } catch (error) {
-            console.log("Error fetching profile or applications");
-        }
-    }, [user, getToken]);
+    // Helper: Remove Experience
+    const removeExperience = (index) => {
+        const newExp = [...formData.experience];
+        newExp.splice(index, 1);
+        setFormData({ ...formData, experience: newExp });
+    };
 
     useEffect(() => {
-        if (user) fetchProfileData();
-    }, [user, fetchProfileData]);
-
-    const handleToggleVisibility = useCallback(async () => {
-        setStatus('Updating profile visibility...');
-        try {
-            const token = await getToken();
-            const res = await axios.put('http://localhost:5000/api/users/profile/toggle-visibility', {}, {
-                headers: { Authorization: `Bearer ${token}` },
-            });
-            const newState = res.data.isPublic;
-            setIsProfilePublic(newState);
-            setDbUser(prev => ({ ...prev, isPublic: newState }));
-            setStatus(`Profile is now ${newState ? 'Public' : 'Private'} ✅`);
-        } catch (error) {
-            setStatus('Error updating visibility ❌');
-        }
-    }, [getToken]);
-
-    // --- FORM HANDLERS ---
-
-    const handleChange = (e) => {
-        const { name, value } = e.target;
-        // Handle nested links object
-        if (name.startsWith('link_')) {
-            const linkType = name.split('_')[1];
-            setFormData(prev => ({
-                ...prev,
-                links: { ...prev.links, [linkType]: value }
-            }));
-        } else {
-            setFormData({ ...formData, [name]: value });
-        }
-    };
-
-    // Handler for Dynamic Arrays (Work/Education)
-    const handleArrayChange = (index, field, value, type) => {
-        const updatedArray = [...formData[type]];
-        updatedArray[index][field] = value;
-        setFormData({ ...formData, [type]: updatedArray });
-    };
-
-    const addArrayItem = (type) => {
-        const emptyItem = type === 'workExperience' 
-            ? { title: "", company: "", startDate: "", endDate: "", achievements: "" }
-            : { degree: "", institution: "", gradYear: "" };
-        setFormData({ ...formData, [type]: [...formData[type], emptyItem] });
-    };
-
-    const removeArrayItem = (index, type) => {
-        const updatedArray = formData[type].filter((_, i) => i !== index);
-        setFormData({ ...formData, [type]: updatedArray });
-    };
-
-    const handleFileChange = (e) => {
-        if (e.target.name === 'resume') setResume(e.target.files[0]);
-        if (e.target.name === 'photo') setPhoto(e.target.files[0]);
-    };
+        const fetchProfile = async () => {
+            try {
+                const token = await getToken();
+                const { data } = await axios.get('http://localhost:5000/api/users/profile', {
+                    headers: { Authorization: `Bearer ${token}` }
+                });
+                setDbUser(data);
+                setFormData({
+                    ...data,
+                    name: data.name || user?.fullName || '',
+                    skills: data.skills ? data.skills.join(', ') : '', 
+                    education: data.education.length ? data.education : [],
+                    experience: data.experience.length ? data.experience : []
+                });
+            } catch (error) {
+                console.log("New user");
+                if(user) setFormData(prev => ({ ...prev, name: user.fullName }));
+            }
+        };
+        if(user) fetchProfile();
+    }, [user]);
 
     const handleSubmit = async (e) => {
         e.preventDefault();
         const submitData = new FormData();
-
-        // Append simple fields
-        submitData.append('name', formData.fullName);
-        submitData.append('email', formData.email);
-        submitData.append('phone', formData.phone);
-        submitData.append('address', formData.location); // Map location to address
         
-        submitData.append('headline', formData.headline);
-        submitData.append('bio', formData.aboutMe);
-        submitData.append('desiredJobTitle', formData.jobTitlesTarget);
-        submitData.append('jobType', formData.workType);
-        submitData.append('expectedSalary', formData.salaryExpectation);
-        submitData.append('visibilityStatus', formData.visibilityStatus);
+        Object.keys(formData).forEach(key => {
+            if(key !== 'education' && key !== 'experience' && key !== 'skills') {
+                submitData.append(key, formData[key]);
+            }
+        });
 
-        // Serialize complex objects/arrays
         submitData.append('education', JSON.stringify(formData.education));
-        submitData.append('experience', JSON.stringify(formData.workExperience));
-        submitData.append('links', JSON.stringify(formData.links));
+        submitData.append('experience', JSON.stringify(formData.experience));
+        
+        const skillsArray = formData.skills.split(',').map(s => s.trim()).filter(s => s !== "");
+        submitData.append('skills', JSON.stringify(skillsArray));
 
-        // Handle Comma Separated Strings -> Arrays
-        submitData.append('skills', JSON.stringify(formData.skills.split(',').map(s => s.trim()).filter(s => s !== "")));
-        submitData.append('certifications', JSON.stringify(formData.certifications.split(',').map(s => s.trim())));
-        submitData.append('languages', JSON.stringify(formData.languages.split(',').map(s => s.trim())));
-
-        // Files
         if (resume) submitData.append('resume', resume);
-        if (photo) submitData.append('photo', photo);
 
         try {
             const token = await getToken();
@@ -303,242 +102,176 @@ const ProfileUpdate = () => {
     if (!user) return <div className="p-10 text-center">Loading...</div>;
 
     return (
-        <div className="w-full mt-10 px-6 max-w-7xl mx-auto">
+        <div className="w-full mt-10 px-6">
             {status && <div className="mb-6 p-4 bg-green-100 text-green-700 rounded text-center font-bold">{status}</div>}
 
             {!isEditing ? (
-                // --- VIEW MODE (UNCHANGED) ---
-                <div className="relative">
-                    <div className="absolute top-0 right-0 z-50 p-4">
-                        <ProfileVisibilityToggle isPublic={isProfilePublic} onToggle={handleToggleVisibility} />
+                /* --- VIEW MODE --- */
+                <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
+                    {/* LEFT COLUMN (3/12) */}
+                    <div className="md:col-span-3 space-y-6">
+                        <div className="bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden flex flex-col">
+                            
+                            <div className="p-6 text-center flex-grow">
+                                <img src={user.imageUrl} className="w-24 h-24 rounded-full mx-auto border-4 border-white shadow mb-4" />
+                                <h2 className="text-xl font-bold text-gray-800">{dbUser?.name}</h2>
+                                <p className="text-gray-500 text-sm">{dbUser?.desiredJobTitle || "No Title Set"}</p>
+                                <div className="mt-4 text-left text-sm space-y-2 border-t pt-4">
+                                    <p><strong>📍 Loc:</strong> {dbUser?.address || "N/A"}</p>
+                                    <p><strong>📞 Phone:</strong> {dbUser?.phone || "N/A"}</p>
+                                    <p><strong>✉️ Email:</strong> {user.primaryEmailAddress.emailAddress}</p>
+                                    
+                                </div>
+                                <div className="mt-4 pt-4 border-t">
+                                    <h4 className="font-bold text-gray-700 text-sm mb-2">Skills</h4>
+                                    <div className="flex flex-wrap gap-2 justify-center">
+                                        {dbUser?.skills?.map((skill, i) => (
+                                            <span key={i} className="bg-gray-100 text-gray-600 text-xs px-2 py-1 rounded">{skill}</span>
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* MOVED: Edit Button to Bottom */}
+                            <div className="bg-gray-50 p-4 border-t text-center mt-auto">
+                                <button onClick={() => setIsEditing(true)} className="w-full bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition font-bold shadow text-sm">
+                                    ✏️ Edit Profile
+                                </button>
+                            </div>
+                        </div>
+
+                         <div className="bg-white p-6 rounded-xl shadow border border-gray-100 text-center">
+                            <h3 className="font-bold mb-2">Resume</h3>
+                            {dbUser?.resume?.url ? 
+                                <a href={dbUser.resume.url} target="_blank" className="text-blue-600 font-bold hover:underline">Download CV</a> 
+                                : <span className="text-gray-400 text-sm">Not Uploaded</span>}
+                        </div>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-12 gap-8 pt-12">
-                        <div className="md:col-span-4 space-y-6">
-                            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-                                <div className="p-8 text-center">
-                                    <img src={dbUser?.photoUrl || user.imageUrl} className="w-28 h-28 rounded-full mx-auto border-4 border-white shadow-md mb-4" alt="Profile" />
-                                    <h2 className="text-2xl font-bold text-gray-800 uppercase tracking-tight">{dbUser?.name}</h2>
-                                    <p className="text-indigo-600 font-bold text-sm mb-1">{dbUser?.headline || "No Headline"}</p>
-                                    <p className="text-gray-500 font-medium text-xs">{dbUser?.desiredJobTitle || "No Target Title"}</p>
-
-                                    <div className="mt-6 text-left space-y-3 border-t pt-6 text-sm text-gray-600">
-                                        <div className="flex items-center"><MapPin size={16} className="mr-2 text-blue-500" /> {dbUser?.address || "Loc: N/A"}</div>
-                                        <div className="flex items-center">📞 {dbUser?.phone || "N/A"}</div>
-                                        <div className="flex items-center">✉️ {dbUser?.email || user.primaryEmailAddress.emailAddress}</div>
-                                    </div>
-
-                                    <div className="mt-6 pt-6 border-t text-left">
-                                        <h4 className="font-bold text-gray-700 text-xs uppercase mb-3 tracking-widest">Skills</h4>
-                                        <div className="flex flex-wrap gap-2">
-                                            {dbUser?.skills?.map((skill, i) => (
-                                                <span key={i} className="bg-blue-50 text-blue-600 text-[10px] font-bold px-2 py-1 rounded uppercase tracking-tighter border border-blue-100">{skill}</span>
-                                            ))}
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <div className="p-4 bg-gray-50 border-t">
-                                    <button onClick={() => setIsEditing(true)} className="w-full bg-blue-600 text-white py-3 rounded-xl hover:bg-blue-700 transition font-bold shadow-md flex items-center justify-center gap-2">
-                                        ✏️ Edit Profile
-                                    </button>
-                                </div>
-                            </div>
-
-                            <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-                                <h3 className="font-bold text-gray-800 mb-2">Resume</h3>
-                                {dbUser?.resume?.url ?
-                                    <a href={dbUser.resume.url} target="_blank" rel="noreferrer" className="text-blue-600 font-bold hover:underline flex items-center gap-2">📄 Download CV</a>
-                                    : <span className="text-gray-400 text-sm">Not Uploaded</span>}
-                            </div>
-                        </div>
-
-                        <div className="md:col-span-8 space-y-8">
-                            <div className="flex items-center justify-between">
-                                <h2 className="text-3xl font-black text-gray-900 tracking-tight italic">Jobs Applied</h2>
-                                <span className="bg-gray-100 text-gray-600 px-4 py-1.5 rounded-full text-xs font-bold">
-                                    {appliedJobs.length} Applications
-                                </span>
-                            </div>
-                            <ApplicationsTable applications={appliedJobs} />
-                        </div>
+                    {/* RIGHT SPACE (9/12) - EMPTY FOR ADS */}
+                    <div className="md:col-span-9 bg-gray-50 border-2 border-dashed border-gray-300 rounded-xl flex items-center justify-center text-gray-400 min-h-[600px]">
+                        Job Ads Space
                     </div>
                 </div>
             ) : (
-                // --- EDIT MODE (COMPLETELY REFACTORED) ---
+                /* --- EDIT MODE (FORM) --- */
                 <div className="max-w-4xl mx-auto bg-white p-8 rounded-xl shadow-xl border border-gray-200">
-                    <h2 className="text-2xl font-bold mb-6 border-b pb-4">Update Profile</h2>
+                    <h2 className="text-2xl font-bold mb-6 border-b pb-4">Update Job Profile</h2>
                     <form onSubmit={handleSubmit} className="space-y-8">
-
-                        {/* SECTION 1: THE "MUST-HAVE" ESSENTIALS */}
-                        <div>
-                            <h3 className="text-lg font-black text-gray-800 uppercase tracking-wide mb-4 flex items-center gap-2">
-                                <span className="w-2 h-8 bg-blue-600 rounded-full"></span> 1. Essentials (Required)
-                            </h3>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <div>
-                                    <label className="block text-gray-700 font-bold mb-2 text-sm">Full Name</label>
-                                    <input type="text" name="fullName" value={formData.fullName} onChange={handleChange} className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500 bg-gray-50" required placeholder="Professional Name" />
-                                </div>
-                                <div>
-                                    <label className="block text-gray-700 font-bold mb-2 text-sm">Professional Email</label>
-                                    <input type="email" name="email" value={formData.email} onChange={handleChange} className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500 bg-gray-50" required />
-                                </div>
-                                <div>
-                                    <label className="block text-gray-700 font-bold mb-2 text-sm">Phone Number</label>
-                                    <input type="tel" name="phone" value={formData.phone} onChange={handleChange} className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500 bg-gray-50" required placeholder="+1 (555) 000-0000" />
-                                </div>
-                                <div>
-                                    <label className="block text-gray-700 font-bold mb-2 text-sm">Location (City, State)</label>
-                                    <input type="text" name="location" value={formData.location} onChange={handleChange} className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500 bg-gray-50" required placeholder="New York, NY" />
-                                </div>
+                        
+                        {/* 1. PERSONAL INFO */}
+                        <section>
+                            <h3 className="text-lg font-bold text-blue-600 mb-4">1. Personal Information</h3>
+                            <div className="grid md:grid-cols-2 gap-4">
+                                <input placeholder="Full Name" className="border p-2 rounded" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} />
+                                <input placeholder="Phone Number" className="border p-2 rounded" value={formData.phone} onChange={e => setFormData({...formData, phone: e.target.value})} />
+                                <input placeholder="Date of Birth" type="date" className="border p-2 rounded" value={formData.dob} onChange={e => setFormData({...formData, dob: e.target.value})} />
+                                <select className="border p-2 rounded" value={formData.gender} onChange={e => setFormData({...formData, gender: e.target.value})}>
+                                    <option value="">Select Gender</option>
+                                    <option value="Male">Male</option>
+                                    <option value="Female">Female</option>
+                                </select>
+                                <input placeholder="Address (City, Area)" className="border p-2 rounded md:col-span-2" value={formData.address} onChange={e => setFormData({...formData, address: e.target.value})} />
                             </div>
-                            
-                            {/* Work Experience Array */}
-                            <div className="mt-6">
-                                <label className="block text-gray-700 font-bold mb-2 text-sm">Work Experience</label>
-                                {formData.workExperience.map((exp, index) => (
-                                    <div key={index} className="bg-gray-50 p-4 rounded-xl mb-4 border border-gray-200 relative">
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
-                                            <input type="text" placeholder="Job Title" value={exp.title} onChange={(e) => handleArrayChange(index, 'title', e.target.value, 'workExperience')} className="p-2 border rounded" required />
-                                            <input type="text" placeholder="Company" value={exp.company} onChange={(e) => handleArrayChange(index, 'company', e.target.value, 'workExperience')} className="p-2 border rounded" required />
-                                            <input type="text" placeholder="Start Date (MM/YY)" value={exp.startDate} onChange={(e) => handleArrayChange(index, 'startDate', e.target.value, 'workExperience')} className="p-2 border rounded" required />
-                                            <input type="text" placeholder="End Date (or Present)" value={exp.endDate} onChange={(e) => handleArrayChange(index, 'endDate', e.target.value, 'workExperience')} className="p-2 border rounded" required />
-                                        </div>
-                                        <textarea placeholder="Key Achievements (Bullet points)..." value={exp.achievements} onChange={(e) => handleArrayChange(index, 'achievements', e.target.value, 'workExperience')} className="w-full p-2 border rounded" rows="2"></textarea>
+                        </section>
+
+                        {/* 2. CAREER INFO */}
+                        <section>
+                            <h3 className="text-lg font-bold text-blue-600 mb-4">2. Career Information</h3>
+                            <div className="grid md:grid-cols-2 gap-4">
+                                <input placeholder="Desired Job Title" className="border p-2 rounded" value={formData.desiredJobTitle} onChange={e => setFormData({...formData, desiredJobTitle: e.target.value})} />
+                                
+                                <select className="border p-2 rounded" value={formData.jobType} onChange={e => setFormData({...formData, jobType: e.target.value})}>
+                                    <option>Full-time</option><option>Part-time</option><option>Remote</option><option>Internship</option>
+                                </select>
+                                <input placeholder="Preferred Location" className="border p-2 rounded" value={formData.preferredLocation} onChange={e => setFormData({...formData, preferredLocation: e.target.value})} />
+                                <textarea placeholder="Career Summary" className="border p-2 rounded md:col-span-2 h-20" value={formData.bio} onChange={e => setFormData({...formData, bio: e.target.value})} />
+                            </div>
+                        </section>
+
+                        {/* 3. EDUCATION */}
+                        <section>
+                            <h3 className="text-lg font-bold text-blue-600 mb-4 flex justify-between">
+                                3. Education 
+                                <button type="button" onClick={addEducation} className="text-sm bg-blue-100 text-blue-600 px-3 py-1 rounded font-bold hover:bg-blue-200">+ Add Degree</button>
+                            </h3>
+                            {formData.education.map((edu, index) => (
+                                <div key={index} className="bg-gray-50 p-4 rounded mb-4 border relative">
+                                    <button type="button" onClick={() => removeEducation(index)} className="absolute top-2 right-2 text-red-500 hover:text-red-700 font-bold text-sm">✕ Remove</button>
+                                    <div className="grid md:grid-cols-2 gap-3 mt-4">
+                                        <input placeholder="Degree (e.g. BSc)" className="border p-2 rounded" value={edu.degree} onChange={e => {
+                                            const newEdu = [...formData.education]; newEdu[index].degree = e.target.value; setFormData({...formData, education: newEdu});
+                                        }} />
+                                        <input placeholder="Institute" className="border p-2 rounded" value={edu.institution} onChange={e => {
+                                            const newEdu = [...formData.education]; newEdu[index].institution = e.target.value; setFormData({...formData, education: newEdu});
+                                        }} />
+                                        <input placeholder="Result (GPA)" className="border p-2 rounded" value={edu.result} onChange={e => {
+                                            const newEdu = [...formData.education]; newEdu[index].result = e.target.value; setFormData({...formData, education: newEdu});
+                                        }} />
+                                        <input placeholder="End Year" className="border p-2 rounded" value={edu.endDate} onChange={e => {
+                                            const newEdu = [...formData.education]; newEdu[index].endDate = e.target.value; setFormData({...formData, education: newEdu});
+                                        }} />
+                                    </div>
+                                </div>
+                            ))}
+                        </section>
+                        
+                        {/* 4. WORK EXPERIENCE */}
+                        <section>
+                            <h3 className="text-lg font-bold text-blue-600 mb-4 flex justify-between">
+                                4. Experience 
+                                <button type="button" onClick={addExperience} className="text-sm bg-blue-100 text-blue-600 px-3 py-1 rounded font-bold hover:bg-blue-200">+ Add Job</button>
+                            </h3>
+                             {formData.experience.map((exp, index) => (
+                                <div key={index} className="bg-gray-50 p-4 rounded mb-4 border relative">
+                                    <button type="button" onClick={() => removeExperience(index)} className="absolute top-2 right-2 text-red-500 hover:text-red-700 font-bold text-sm">✕ Remove</button>
+                                    <div className="grid md:grid-cols-2 gap-3 mt-4">
+                                        <input placeholder="Company" className="border p-2 rounded" value={exp.company} onChange={e => {
+                                            const newExp = [...formData.experience]; newExp[index].company = e.target.value; setFormData({...formData, experience: newExp});
+                                        }} />
+                                        <input placeholder="Position" className="border p-2 rounded" value={exp.position} onChange={e => {
+                                            const newExp = [...formData.experience]; newExp[index].position = e.target.value; setFormData({...formData, experience: newExp});
+                                        }} />
                                         
-                                        {formData.workExperience.length > 1 && (
-                                            <button type="button" onClick={() => removeArrayItem(index, 'workExperience')} className="absolute top-2 right-2 text-red-500 hover:text-red-700"><Trash2 size={16}/></button>
-                                        )}
-                                    </div>
-                                ))}
-                                <button type="button" onClick={() => addArrayItem('workExperience')} className="text-blue-600 text-sm font-bold flex items-center gap-1 hover:underline"><Plus size={16}/> Add Role</button>
-                            </div>
-
-                             {/* Education Array */}
-                             <div className="mt-4">
-                                <label className="block text-gray-700 font-bold mb-2 text-sm">Education</label>
-                                {formData.education.map((edu, index) => (
-                                    <div key={index} className="bg-gray-50 p-4 rounded-xl mb-4 border border-gray-200 relative">
-                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                                            <input type="text" placeholder="Degree / Certificate" value={edu.degree} onChange={(e) => handleArrayChange(index, 'degree', e.target.value, 'education')} className="p-2 border rounded" required />
-                                            <input type="text" placeholder="Institution" value={edu.institution} onChange={(e) => handleArrayChange(index, 'institution', e.target.value, 'education')} className="p-2 border rounded" required />
-                                            <input type="text" placeholder="Grad Year" value={edu.gradYear} onChange={(e) => handleArrayChange(index, 'gradYear', e.target.value, 'education')} className="p-2 border rounded" required />
+                                        {/* Job Type Select */}
+                                        <select className="border p-2 rounded" value={exp.type} onChange={e => {
+                                            const newExp = [...formData.experience]; newExp[index].type = e.target.value; setFormData({...formData, experience: newExp});
+                                        }}>
+                                            <option value="">Job Type</option><option>Full-time</option><option>Part-time</option><option>Contract</option>
+                                        </select>
+                                        
+                                        {/* Currently Working Checkbox */}
+                                        <div className="flex items-center gap-2 border p-2 rounded bg-white">
+                                            <input type="checkbox" checked={exp.isCurrent} onChange={e => {
+                                                const newExp = [...formData.experience]; newExp[index].isCurrent = e.target.checked; setFormData({...formData, experience: newExp});
+                                            }} />
+                                            <label className="text-sm text-gray-600">Currently Working</label>
                                         </div>
-                                        {formData.education.length > 1 && (
-                                            <button type="button" onClick={() => removeArrayItem(index, 'education')} className="absolute top-2 right-2 text-red-500 hover:text-red-700"><Trash2 size={16}/></button>
-                                        )}
+
+                                        <input placeholder="Start Date" type="date" className="border p-2 rounded" value={exp.startDate} onChange={e => {
+                                            const newExp = [...formData.experience]; newExp[index].startDate = e.target.value; setFormData({...formData, experience: newExp});
+                                        }} />
+                                        <input placeholder="End Date" type="date" className="border p-2 rounded" value={exp.endDate} disabled={exp.isCurrent} onChange={e => {
+                                            const newExp = [...formData.experience]; newExp[index].endDate = e.target.value; setFormData({...formData, experience: newExp});
+                                        }} />
                                     </div>
-                                ))}
-                                <button type="button" onClick={() => addArrayItem('education')} className="text-blue-600 text-sm font-bold flex items-center gap-1 hover:underline"><Plus size={16}/> Add Education</button>
-                            </div>
-                        </div>
+                                    <textarea placeholder="Responsibilities" className="w-full border p-2 rounded h-20 mt-2" value={exp.responsibilities} onChange={e => {
+                                            const newExp = [...formData.experience]; newExp[index].responsibilities = e.target.value; setFormData({...formData, experience: newExp});
+                                    }} />
+                                </div>
+                            ))}
+                        </section>
 
-                        <hr className="border-gray-100" />
+                        {/* 5. SKILLS & FILE */}
+                        <section>
+                             <h3 className="text-lg font-bold text-blue-600 mb-4">5. Skills & Resume</h3>
+                             <input placeholder="Skills (comma separated)" className="w-full border p-2 rounded mb-4" value={formData.skills} onChange={e => setFormData({...formData, skills: e.target.value})} />
+                             <input type="file" onChange={e => setResume(e.target.files[0])} className="block w-full text-sm text-gray-500 file:bg-blue-50 file:text-blue-700 file:rounded-full file:px-4 file:py-2 file:border-0" />
+                        </section>
 
-                        {/* SECTION 2: VISIBILITY BOOSTERS */}
-                        <div>
-                             <h3 className="text-lg font-black text-gray-800 uppercase tracking-wide mb-4 flex items-center gap-2">
-                                <span className="w-2 h-8 bg-indigo-500 rounded-full"></span> 2. Visibility Boosters
-                            </h3>
-                            <div className="space-y-4">
-                                <div>
-                                    <label className="block text-gray-700 font-bold mb-1 text-sm">Professional Headline</label>
-                                    <input type="text" name="headline" value={formData.headline} onChange={handleChange} className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-indigo-500" placeholder="e.g. Marketing Assistant | SEO & Social Media Specialist" />
-                                </div>
-                                <div>
-                                    <label className="block text-gray-700 font-bold mb-1 text-sm">Skills (Comma Separated, 10-15 recommended)</label>
-                                    <input type="text" name="skills" value={formData.skills} onChange={handleChange} className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-indigo-500" placeholder="Python, React, Project Management, SEO..." />
-                                </div>
-                                <div>
-                                    <label className="block text-gray-700 font-bold mb-1 text-sm">Profile Summary / About Me</label>
-                                    <textarea name="aboutMe" value={formData.aboutMe} onChange={handleChange} rows="3" className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-indigo-500" placeholder="Current Role + Years of Exp + Key Achievement + Goal..."></textarea>
-                                </div>
-                            </div>
-                        </div>
-
-                        <hr className="border-gray-100" />
-
-                        {/* SECTION 3: THE VALUE ADD */}
-                        <div>
-                            <h3 className="text-lg font-black text-gray-800 uppercase tracking-wide mb-4 flex items-center gap-2">
-                                <span className="w-2 h-8 bg-purple-500 rounded-full"></span> 3. Value Add
-                            </h3>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                <div>
-                                    <label className="block text-gray-700 font-bold mb-2 text-sm">Upload Photo (Headshot)</label>
-                                    <input type="file" name="photo" accept="image/*" onChange={handleFileChange} className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-purple-50 file:text-purple-700 hover:file:bg-purple-100"/>
-                                </div>
-                                <div>
-                                    <label className="block text-gray-700 font-bold mb-2 text-sm">Upload Resume (PDF)</label>
-                                    <input type="file" name="resume" accept=".pdf,.doc,.docx" onChange={handleFileChange} className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"/>
-                                </div>
-                            </div>
-                            
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
-                                <div>
-                                    <label className="block text-gray-700 font-bold mb-1 text-xs uppercase">LinkedIn URL</label>
-                                    <input type="url" name="link_linkedin" value={formData.links.linkedin} onChange={handleChange} className="w-full p-2 border rounded text-sm" placeholder="linkedin.com/in/..." />
-                                </div>
-                                <div>
-                                    <label className="block text-gray-700 font-bold mb-1 text-xs uppercase">GitHub / Behance</label>
-                                    <input type="url" name="link_github" value={formData.links.github} onChange={handleChange} className="w-full p-2 border rounded text-sm" placeholder="github.com/..." />
-                                </div>
-                                <div>
-                                    <label className="block text-gray-700 font-bold mb-1 text-xs uppercase">Portfolio Website</label>
-                                    <input type="url" name="link_portfolio" value={formData.links.portfolio} onChange={handleChange} className="w-full p-2 border rounded text-sm" placeholder="mywebsite.com" />
-                                </div>
-                            </div>
-                            
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-                                <div>
-                                    <label className="block text-gray-700 font-bold mb-1 text-sm">Certifications</label>
-                                    <input type="text" name="certifications" value={formData.certifications} onChange={handleChange} className="w-full p-2 border rounded" placeholder="PMP, AWS Certified..." />
-                                </div>
-                                <div>
-                                    <label className="block text-gray-700 font-bold mb-1 text-sm">Languages</label>
-                                    <input type="text" name="languages" value={formData.languages} onChange={handleChange} className="w-full p-2 border rounded" placeholder="Spanish (Conversational)..." />
-                                </div>
-                            </div>
-                        </div>
-
-                        <hr className="border-gray-100" />
-
-                        {/* SECTION 4: CRITICAL SETTINGS */}
-                        <div className="bg-gray-50 p-6 rounded-xl">
-                            <h3 className="text-lg font-black text-gray-800 uppercase tracking-wide mb-4">4. Critical Settings</h3>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <div>
-                                    <label className="block text-gray-700 font-bold mb-2 text-sm">Target Job Titles</label>
-                                    <input type="text" name="jobTitlesTarget" value={formData.jobTitlesTarget} onChange={handleChange} className="w-full p-3 border rounded-lg bg-white" placeholder="Sales Manager, Account Executive" />
-                                </div>
-                                <div>
-                                    <label className="block text-gray-700 font-bold mb-2 text-sm">Work Type</label>
-                                    <select name="workType" value={formData.workType} onChange={handleChange} className="w-full p-3 border rounded-lg bg-white">
-                                        <option value="On-site">On-site</option>
-                                        <option value="Remote">Remote</option>
-                                        <option value="Hybrid">Hybrid</option>
-                                    </select>
-                                </div>
-                                <div>
-                                    <label className="block text-gray-700 font-bold mb-2 text-sm">Salary Expectation</label>
-                                    <input type="text" name="salaryExpectation" value={formData.salaryExpectation} onChange={handleChange} className="w-full p-3 border rounded-lg bg-white" placeholder="e.g. $60,000/year" />
-                                </div>
-                                <div>
-                                    <label className="block text-gray-700 font-bold mb-2 text-sm">Visibility Status</label>
-                                    <select name="visibilityStatus" value={formData.visibilityStatus} onChange={handleChange} className="w-full p-3 border rounded-lg bg-white">
-                                        <option value="Actively Looking">Actively Looking</option>
-                                        <option value="Open to Work">Open to Work (Casual)</option>
-                                        <option value="Not Looking">Not Looking</option>
-                                    </select>
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* ACTIONS */}
-                        <div className="flex gap-4 pt-4 sticky bottom-0 bg-white p-4 border-t shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)]">
-                            <button type="submit" className="flex-1 bg-blue-600 text-white font-bold py-3 rounded-xl hover:bg-blue-700 transition shadow-lg transform active:scale-95">Save Profile</button>
-                            <button type="button" onClick={() => setIsEditing(false)} className="flex-1 bg-gray-200 text-gray-700 font-bold py-3 rounded-xl hover:bg-gray-300 transition">Cancel</button>
+                        <div className="flex gap-4">
+                            <button type="submit" className="flex-1 bg-green-600 text-white font-bold py-3 rounded hover:bg-green-700">Save Changes</button>
+                            <button type="button" onClick={() => setIsEditing(false)} className="flex-1 bg-gray-500 text-white font-bold py-3 rounded hover:bg-gray-600">Cancel</button>
                         </div>
                     </form>
                 </div>
